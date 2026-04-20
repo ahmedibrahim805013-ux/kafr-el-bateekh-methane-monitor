@@ -12,87 +12,129 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
     body { font-family: 'Cairo', sans-serif; margin:0; background:#0f172a; color:white; }
-    .header { background: linear-gradient(135deg, #1e88e5, #0f4c8a); padding:20px; text-align:center; }
-    .map { height:520px; border-radius:12px; }
-    .card { background:#1e2937; padding:20px; border-radius:16px; margin:15px 0; }
-    .high { color:#ef4444; } .medium { color:#f59e0b; } .low { color:#22c55e; }
+    .header { background: linear-gradient(135deg, #1e88e5, #1565c0); padding:20px; text-align:center; }
+    .container { max-width: 1200px; margin: auto; padding:15px; }
+    .map { height: 550px; border-radius: 15px; }
+    .card { background:#1e2937; border-radius:15px; padding:20px; margin-bottom:20px; }
+    .high { color: #ef4444; font-weight: bold; }
+    .medium { color: #f59e0b; font-weight: bold; }
+    .low { color: #22c55e; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="header">
   <h1>🌍 غاز كفر البطيخ</h1>
-  <p>مراقبة الميثان وشبكة الغاز</p>
+  <p>نظام مراقبة غاز الميثان وشبكة الغاز الطبيعي</p>
 </div>
 
-<div class="card">
-  <div id="map" class="map"></div>
-</div>
+<div class="container">
+  <div class="card">
+    <div id="map" class="map"></div>
+  </div>
 
-<div id="info" class="card" style="display:none;">
-  <h3>📍 التفاصيل</h3>
-  <p><strong>الاسم:</strong> <span id="name">-</span></p>
-  <p><strong>الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
-  <p><strong>الاتصال:</strong> <span id="connect">-</span></p>
+  <div id="info-card" class="card" style="display: none;">
+    <h2>📍 تفاصيل النقطة</h2>
+    <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
+    <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
+    <p><strong>الاتصال بالشبكة:</strong> <span id="connected">-</span></p>
+    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span></p>
+    <p><strong>الحالة:</strong> <span id="status">-</span></p>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
 
+<script>
+// تهيئة الخريطة
 let map;
 
 function initMap() {
   map = L.map('map').setView([31.40, 31.75], 14);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // تحميل الطبقات
-  Promise.all([
-    fetch('buildings.geojson').then(r => r.json()).catch(() => null),
-    fetch('network.geojson').then(r => r.json()).catch(() => null),
-    fetch('leaks.geojson').then(r => r.json()).catch(() => null)
-  ]).then(([buildings, network, leaks]) => {
-    
-    if (buildings) {
-      L.geoJSON(buildings, {
-        style: {color: "#3b82f6", fillOpacity: 0.4},
-        onEachFeature: (f, l) => l.on('click', () => showInfo(f))
-      }).addTo(map);
-    }
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
 
-    if (network) {
-      L.geoJSON(network, {
-        style: {color: "#22c55e", weight: 6},
-        onEachFeature: (f, l) => l.on('click', () => showInfo(f))
-      }).addTo(map);
-    }
-
-    if (leaks) {
-      L.geoJSON(leaks, {
-        pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius: 10, color: "#ef4444"}),
-        onEachFeature: (f, l) => l.on('click', () => showInfo(f))
-      }).addTo(map);
-    }
-  });
+  // تحميل الطبقات الثلاث
+  loadLayers();
 }
 
+async function loadLayers() {
+  try {
+    // 1. المباني
+    const buildingsRes = await fetch('buildings.geojson');
+    const buildings = await buildingsRes.json();
+    
+    L.geoJSON(buildings, {
+      style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
+      onEachFeature: function(feature, layer) {
+        layer.on('click', () => showInfo(feature));
+      }
+    }).addTo(map);
+
+    // 2. شبكة الغاز
+    const networkRes = await fetch('network.geojson');
+    const network = await networkRes.json();
+    
+    L.geoJSON(network, {
+      style: { color: "#22c55e", weight: 6 },
+      onEachFeature: function(feature, layer) {
+        layer.on('click', () => showInfo(feature));
+      }
+    }).addTo(map);
+
+    // 3. نقاط التسريب (دوائر حمراء عادية)
+    const leaksRes = await fetch('leaks.geojson');
+    const leaks = await leaksRes.json();
+    
+    L.geoJSON(leaks, {
+      pointToLayer: function(feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 10,
+          fillColor: "#ef4444",
+          color: "#ffffff",
+          weight: 3,
+          opacity: 1,
+          fillOpacity: 0.9
+        });
+      },
+      onEachFeature: function(feature, layer) {
+        layer.on('click', () => showInfo(feature));
+      }
+    }).addTo(map);
+
+  } catch (error) {
+    console.error("خطأ في تحميل الملفات:", error);
+    alert("تأكد من رفع الملفات: buildings.geojson , network.geojson , leaks.geojson");
+  }
+}
+
+// عرض التفاصيل عند النقر
 function showInfo(feature) {
   const p = feature.properties || {};
-  const methane = p.methane_ppm || (1 + Math.random()*3).toFixed(2);
+
+  const methane = parseFloat(p.methane_ppm) || (1.5 + Math.random() * 3).toFixed(2);
   
-  document.getElementById('name').textContent = p.building_name || p.name || "منطقة";
+  let levelHTML = '';
+  if (methane > 5) levelHTML = '<span class="high"> (عالي - خطر)</span>';
+  else if (methane > 2.5) levelHTML = '<span class="medium"> (متوسط - تحذير)</span>';
+  else levelHTML = '<span class="low"> (منخفض - آمن)</span>';
+
+  document.getElementById('name').textContent = p.building_name || p.name || "منطقة غير مسماة";
   document.getElementById('methane').textContent = methane;
-  document.getElementById('level').innerHTML = methane > 4 ? 
-    '<span class="high"> (عالي - خطر)</span>' : 
-    methane > 2.5 ? '<span class="medium"> (متوسط)</span>' : '<span class="low"> (آمن)</span>';
+  document.getElementById('level').innerHTML = levelHTML;
   
-  document.getElementById('connect').innerHTML = (p.connected === true || p.connected === "true") ? 
-    '✅ متصل بالشبكة' : '⚠️ غير متصل';
-  
-  document.getElementById('info').style.display = 'block';
+  document.getElementById('connected').innerHTML = 
+    (p.connected === true || p.connected === "true") ? 
+    '<span style="color:#22c55e">✅ متصل بالشبكة</span>' : 
+    '<span style="color:#f59e0b">⚠️ غير متصل</span>';
+
+  document.getElementById('diameter').textContent = p.diameter ? p.diameter + " مم" : "غير محدد";
+  document.getElementById('status').textContent = p.status || "طبيعي";
+
+  document.getElementById('info-card').style.display = 'block';
 }
 
+// بدء التشغيل
 window.onload = initMap;
-</script>
-
-</body>
-</html>
