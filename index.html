@@ -1,140 +1,191 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>غاز كفر البطيخ - مراقبة الميثان</title>
-  
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1e88e5">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام تحليل الغاز والميثان - كفر البطيخ</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-    body { font-family: 'Cairo', sans-serif; margin:0; background:#0f172a; color:white; }
-    .header { background: linear-gradient(135deg, #1e88e5, #1565c0); padding:20px; text-align:center; }
-    .container { max-width: 1200px; margin: auto; padding:15px; }
-    .map { height: 550px; border-radius: 15px; }
-    .card { background:#1e2937; border-radius:15px; padding:20px; margin-bottom:20px; }
-    .high { color: #ef4444; font-weight: bold; }
-    .medium { color: #f59e0b; font-weight: bold; }
-    .low { color: #22c55e; font-weight: bold; }
-  </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<style>
+body { font-family: Arial; background:#111; color:#fff; text-align:center; }
+#map { height:60vh; width:95%; margin:auto; border-radius:10px; }
+
+.panel {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:10px;
+    margin-top:15px;
+}
+
+.card {
+    background:#222;
+    padding:10px;
+    border-radius:10px;
+}
+</style>
 </head>
+
 <body>
 
-<div class="header">
-  <h1>🌍 غاز كفر البطيخ</h1>
-  <p>نظام مراقبة غاز الميثان وشبكة الغاز الطبيعي</p>
-</div>
+<h2>نظام مراقبة الغاز والميثان - كفر البطيخ</h2>
 
-<div class="container">
-  <div class="card">
-    <div id="map" class="map"></div>
-  </div>
-
-  <div id="info-card" class="card" style="display: none;">
-    <h2>📍 تفاصيل النقطة</h2>
-    <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
-    <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
-    <p><strong>الاتصال بالشبكة:</strong> <span id="connected">-</span></p>
-    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span></p>
-    <p><strong>الحالة:</strong> <span id="status">-</span></p>
-  </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="map"></div>
+<div class="panel" id="info"></div>
 
 <script>
-// تهيئة الخريطة
-let map;
 
-function initMap() {
-  map = L.map('map').setView([31.40, 31.75], 14);
+// ================= MAP =================
+var map = L.map('map').setView([31.35,31.28],12);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // تحميل الطبقات الثلاث
-  loadLayers();
+// ================= WEATHER =================
+function getWeather(){
+    return {
+        temp:(Math.random()*10+20).toFixed(1),
+        pressure:(Math.random()*10+1005).toFixed(0),
+        windSpeed:(Math.random()*8+2).toFixed(1),
+        windDir:["شمال","جنوب","شرق","غرب"][Math.floor(Math.random()*4)],
+        solar:(Math.random()*800+200).toFixed(0)
+    }
 }
 
-async function loadLayers() {
-  try {
-    // 1. المباني
-    const buildingsRes = await fetch('buildings.geojson');
-    const buildings = await buildingsRes.json();
-    
-    L.geoJSON(buildings, {
-      style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
-      onEachFeature: function(feature, layer) {
-        layer.on('click', () => showInfo(feature));
-      }
-    }).addTo(map);
-
-    // 2. شبكة الغاز
-    const networkRes = await fetch('network.geojson');
-    const network = await networkRes.json();
-    
-    L.geoJSON(network, {
-      style: { color: "#22c55e", weight: 6 },
-      onEachFeature: function(feature, layer) {
-        layer.on('click', () => showInfo(feature));
-      }
-    }).addTo(map);
-
-    // 3. نقاط التسريب (دوائر حمراء عادية)
-    const leaksRes = await fetch('leaks.geojson');
-    const leaks = await leaksRes.json();
-    
-    L.geoJSON(leaks, {
-      pointToLayer: function(feature, latlng) {
-        return L.circleMarker(latlng, {
-          radius: 10,
-          fillColor: "#ef4444",
-          color: "#ffffff",
-          weight: 3,
-          opacity: 1,
-          fillOpacity: 0.9
-        });
-      },
-      onEachFeature: function(feature, layer) {
-        layer.on('click', () => showInfo(feature));
-      }
-    }).addTo(map);
-
-  } catch (error) {
-    console.error("خطأ في تحميل الملفات:", error);
-    alert("تأكد من رفع الملفات: buildings.geojson , network.geojson , leaks.geojson");
-  }
+// ================= RISK =================
+function getRisk(ch4){
+    if(ch4<1750) return {text:"آمن",color:"green"};
+    if(ch4<1850) return {text:"تنبيه",color:"yellow"};
+    if(ch4<1950) return {text:"خطر",color:"orange"};
+    return {text:"خطر شديد",color:"red"};
 }
 
-// عرض التفاصيل عند النقر
-function showInfo(feature) {
-  const p = feature.properties || {};
+// ================= PANEL =================
+function updatePanel(lat,lon,ch4){
+    var w = getWeather();
+    var risk = ch4 ? getRisk(ch4).text : "غير متاح";
 
-  const methane = parseFloat(p.methane_ppm) || (1.5 + Math.random() * 3).toFixed(2);
-  
-  let levelHTML = '';
-  if (methane > 5) levelHTML = '<span class="high"> (عالي - خطر)</span>';
-  else if (methane > 2.5) levelHTML = '<span class="medium"> (متوسط - تحذير)</span>';
-  else levelHTML = '<span class="low"> (منخفض - آمن)</span>';
+    document.getElementById("info").innerHTML = `
+    <div class="card">📍 خط الطول: ${lon.toFixed(5)}</div>
+    <div class="card">📍 دائرة العرض: ${lat.toFixed(5)}</div>
+    <div class="card">⏰ الوقت: ${new Date().toLocaleTimeString('ar-EG')}</div>
 
-  document.getElementById('name').textContent = p.building_name || p.name || "منطقة غير مسماة";
-  document.getElementById('methane').textContent = methane;
-  document.getElementById('level').innerHTML = levelHTML;
-  
-  document.getElementById('connected').innerHTML = 
-    (p.connected === true || p.connected === "true") ? 
-    '<span style="color:#22c55e">✅ متصل بالشبكة</span>' : 
-    '<span style="color:#f59e0b">⚠️ غير متصل</span>';
+    <div class="card">🌡️ الحرارة: ${w.temp} °C</div>
+    <div class="card">☀️ الإشعاع: ${w.solar} W/m²</div>
+    <div class="card">🌬️ الرياح: ${w.windSpeed} m/s (${w.windDir})</div>
+    <div class="card">📊 الضغط: ${w.pressure} hPa</div>
 
-  document.getElementById('diameter').textContent = p.diameter ? p.diameter + " مم" : "غير محدد";
-  document.getElementById('status').textContent = p.status || "طبيعي";
-
-  document.getElementById('info-card').style.display = 'block';
+    <div class="card">🟢 الميثان: ${ch4 || "—"} ppb</div>
+    <div class="card">⚠️ مستوى الخطر: ${risk}</div>
+    `;
 }
 
-// بدء التشغيل
-window.onload = initMap;
+// ================= PIPE STYLE =================
+function pipeStyle(d){
+    return {
+        color:
+            d==250?"red":
+            d==180?"orange":
+            d==125?"yellow":
+            d==90?"green":"blue",
+
+        weight:
+            d==250?6:
+            d==180?5:
+            d==125?4:
+            d==90?3:2
+    }
+}
+
+// ================= GAS NETWORK =================
+fetch("gas_network.geojson")
+.then(r=>r.json())
+.then(data=>{
+    L.geoJSON(data,{
+        style:f=>pipeStyle(f.properties.diameter),
+        onEachFeature:(f,l)=>{
+            l.bindPopup("قطر الأنبوب: "+f.properties.diameter+" مم");
+        }
+    }).addTo(map);
+});
+
+// ================= BUILDINGS =================
+fetch("buildings.geojson")
+.then(r=>r.json())
+.then(data=>{
+    L.geoJSON(data,{
+        style:{color:"gray",fillOpacity:0.3}
+    }).addTo(map);
+});
+
+// ================= LEAKS =================
+fetch("leaks.geojson")
+.then(r=>r.json())
+.then(data=>{
+    L.geoJSON(data,{
+        pointToLayer:(f,latlng)=>{
+            var ch4=f.properties.CH4;
+            var risk=getRisk(ch4);
+
+            return L.circleMarker(latlng,{
+                radius:8,
+                fillColor:risk.color,
+                color:"#000",
+                weight:1,
+                fillOpacity:0.9
+            });
+        },
+        onEachFeature:(f,l)=>{
+            var ch4=f.properties.CH4;
+            var risk=getRisk(ch4);
+
+            l.bindPopup(`
+            نقطة تسريب<br>
+            الميثان: ${ch4} ppb<br>
+            الحالة: ${risk.text}
+            `);
+
+            l.on('click',e=>{
+                updatePanel(e.latlng.lat,e.latlng.lng,ch4);
+            });
+        }
+    }).addTo(map);
+});
+
+// ================= METHANE SURFACE =================
+fetch("methane.geojson")
+.then(r=>r.json())
+.then(data=>{
+    L.geoJSON(data,{
+        style:f=>{
+            var ch4=f.properties.value;
+            var risk=getRisk(ch4);
+
+            return {
+                fillColor:risk.color,
+                fillOpacity:0.4,
+                color:"#000",
+                weight:1
+            }
+        },
+        onEachFeature:(f,l)=>{
+            var ch4=f.properties.value;
+            var risk=getRisk(ch4);
+
+            l.bindPopup(`
+            الميثان: ${ch4} ppb<br>
+            الحالة: ${risk.text}
+            `);
+        }
+    }).addTo(map);
+});
+
+// ================= CLICK =================
+map.on('click',e=>{
+    updatePanel(e.latlng.lat,e.latlng.lng,null);
+});
+
+</script>
+
+</body>
+</html>
