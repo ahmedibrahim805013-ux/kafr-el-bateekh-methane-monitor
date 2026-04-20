@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>غاز وطقس مركز كفر البطيخ - محافظة دمياط</title>
+  <title>غاز مركز كفر البطيخ - محافظة دمياط</title>
   
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#1e88e5">
@@ -167,15 +167,15 @@ async function updateAllData(lat, lon, properties = {}) {
     { label: "خط الطول", value: lon.toFixed(5), icon: "fa-map-marker-alt" },
     { label: "التوقيت", value: now, icon: "fa-clock" },
 
-    { label: "درجة الحرارة", value: generateRandom(18, 33) + "°C", icon: "fa-thermometer-half" },
-        { label: "سرعة الرياح", value: generateRandom(2, 12) + " م/ث", icon: "fa-wind" },
-        { label: "اتجاه الرياح", value: getWindDirection(), icon: "fa-compass" },
-        { label: "الضغط الجوي", value: generateRandom(1005, 1022) + " hPa", icon: "fa-weight" },
-        { label: "الإشعاع الشمسي", value: Math.floor(generateRandom(150, 950)) + " W/m²", icon: "fa-sun" },
-        { label: "التبخر اليومي", value: generateRandom(0.1, 0.7) + " مم", icon: "fa-water" },
-        { label: "هطول المطر", value: generateRandom(0, 3.5) + " مم", icon: "fa-cloud-rain" },
-        { label: "الأشعة فوق البنفسجية", value: generateRandom(0.5, 8.5) + " UV", icon: "fa-radiation" }
-    ];
+    { label: "درجة الحرارة", value: `${temp}°C`, icon: "fa-thermometer-half" },
+    { label: "سرعة الرياح", value: `${windSpeed} م/ث`, icon: "fa-wind" },
+    { label: "اتجاه الرياح", value: windDir, icon: "fa-compass" },
+    { label: "الضغط الجوي", value: `${pressure} hPa`, icon: "fa-weight-hanging" },
+    { label: "الإشعاع الشمسي", value: `${solar} وات/م²`, icon: "fa-sun" },
+    { label: "التبخر", value: `${evap} مم`, icon: "fa-water" },
+    { label: "هطول المطر", value: `${rain} مم`, icon: "fa-cloud-rain" },
+    { label: "الأشعة فوق البنفسجية", value: `${uv} UV`, icon: "fa-radiation" }
+  ];
 
   const container = document.getElementById("data-cards");
   container.innerHTML = "";
