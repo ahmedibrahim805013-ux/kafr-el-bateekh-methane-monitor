@@ -3,25 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>طقس وغاز مركز كفر البطيخ - محافظة دمياط</title>
+  <title>غاز وطقس مركز كفر البطيخ - محافظة دمياط</title>
+  
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#1e88e5">
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
     body { font-family: 'Cairo', sans-serif; margin:0; background:#0f172a; color:white; }
     .header { background: linear-gradient(135deg, #1e88e5, #1565c0); padding:25px; text-align:center; }
-    .container { max-width: 1200px; margin: auto; padding:15px; }
-    #map { height: 520px; border-radius: 15px; margin-bottom: 20px; }
-    .cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+    .container { max-width: 1250px; margin: auto; padding:15px; }
+    #map { height: 550px; border-radius: 15px; margin-bottom: 20px; }
+    .cards-container { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); 
+      gap: 15px; 
+    }
     .card { 
       background: #1e2937; 
       border-radius: 12px; 
       padding: 18px; 
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
-    .card h3 { margin: 0 0 10px 0; font-size: 1.1rem; }
+    .card h3 { margin: 0 0 10px 0; font-size: 1.05rem; color: #94a3b8; }
     .card p { margin: 0; font-size: 1.4rem; font-weight: 600; }
     .high { color: #ef4444; }
     .medium { color: #f59e0b; }
@@ -31,65 +38,136 @@
 <body>
 
 <div class="header">
-  <h1>🌍 طقس وغاز مركز كفر البطيخ</h1>
+  <h1>🌍 غاز وطقس مركز كفر البطيخ</h1>
   <p>نظام مراقبة الغاز الطبيعي والميثان - محافظة دمياط</p>
 </div>
 
 <div class="container">
   <div id="map"></div>
-  
-  <div class="cards-container" id="weather-cards"></div>
+  <div class="cards-container" id="data-cards"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-var map = L.map('map', {
-    maxBounds: [[30.9, 30.8], [31.6, 32.1]],
-    maxBoundsViscosity: 1.0
-}).setView([31.35, 31.28], 11);
+// =============== الخريطة ===============
+let map;
+let currentMarker = null;
 
-L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenTopoMap contributors'
-}).addTo(map);
+function initMap() {
+  map = L.map('map').setView([31.40, 31.75], 13);
 
-var marker = L.marker([31.35, 31.28]).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
 
-// دالة توليد أرقام عشوائية
-function generateRandom(min, max) {
-    return (Math.random() * (max - min) + min).toFixed(2);
+  // النقر في أي مكان على الخريطة
+  map.on('click', function(e) {
+    if (currentMarker) map.removeLayer(currentMarker);
+    
+    currentMarker = L.marker(e.latlng).addTo(map);
+    
+    updateAllData(e.latlng.lat, e.latlng.lng);
+  });
+
+  loadGeoJSONLayers();
 }
 
-// دالة اتجاه الرياح
-function getWindDirection() {
-    const dirs = ["شمال", "شمال شرقي", "شرق", "جنوب شرقي", "جنوب", "جنوب غربي", "غرب", "شمال غربي"];
-    return dirs[Math.floor(Math.random() * dirs.length)];
+// =============== تحميل الطبقات الحقيقية ===============
+async function loadGeoJSONLayers() {
+  try {
+    // المباني
+    const buildings = await (await fetch('buildings.geojson')).json();
+    L.geoJSON(buildings, {
+      style: { color: "#3b82f6", weight: 2.5, fillOpacity: 0.35 },
+      onEachFeature: (feature, layer) => {
+        layer.on('click', (e) => {
+          if (currentMarker) map.removeLayer(currentMarker);
+          currentMarker = L.marker(e.latlng).addTo(map);
+          updateAllData(e.latlng.lat, e.latlng.lng, feature.properties);
+        });
+      }
+    }).addTo(map);
+
+    // شبكة الغاز
+    const network = await (await fetch('network.geojson')).json();
+    L.geoJSON(network, {
+      style: { color: "#22c55e", weight: 6 },
+      onEachFeature: (feature, layer) => {
+        layer.on('click', (e) => {
+          if (currentMarker) map.removeLayer(currentMarker);
+          currentMarker = L.marker(e.latlng).addTo(map);
+          updateAllData(e.latlng.lat, e.latlng.lng, feature.properties);
+        });
+      }
+    }).addTo(map);
+
+    // نقاط التسريب
+    const leaks = await (await fetch('leaks.geojson')).json();
+    L.geoJSON(leaks, {
+      pointToLayer: (feature, latlng) => {
+        return L.circleMarker(latlng, {
+          radius: 10,
+          fillColor: "#ef4444",
+          color: "#ffffff",
+          weight: 3,
+          fillOpacity: 0.85
+        });
+      },
+      onEachFeature: (feature, layer) => {
+        layer.on('click', (e) => {
+          if (currentMarker) map.removeLayer(currentMarker);
+          currentMarker = L.marker(e.latlng).addTo(map);
+          updateAllData(e.latlng.lat, e.latlng.lng, feature.properties);
+        });
+      }
+    }).addTo(map);
+
+  } catch (err) {
+    console.error(err);
+    alert("تأكد من رفع الملفات: buildings.geojson , network.geojson , leaks.geojson");
+  }
 }
 
-// تحديث كل البيانات عند النقر
-function updateData(lat, lon) {
-    var now = new Date();
+// =============== تحديث كل البيانات (الميثان + الطقس + الغاز) ===============
+async function updateAllData(lat, lon, properties = {}) {
+  const p = properties || {};
 
-    // بيانات الميثان والغاز (عشوائية واقعية)
-    const methane = (1.2 + Math.random() * 4.5).toFixed(2);
-    const levelClass = methane > 5 ? "high" : methane > 2.5 ? "medium" : "low";
-    const levelText = methane > 5 ? "(عالي - خطر)" : methane > 2.5 ? "(متوسط - تحذير)" : "(منخفض - آمن)";
+  // بيانات الميثان والغاز
+  const methane = parseFloat(p.methane_ppm) || (1.4 + Math.random() * 4).toFixed(2);
+  const levelClass = methane > 5 ? "high" : methane > 2.5 ? "medium" : "low";
+  const levelText = methane > 5 ? "(عالي - خطر)" : methane > 2.5 ? "(متوسط - تحذير)" : "(منخفض - آمن)";
 
-    const diameters = [250, 180, 125, 90, 63];
-    const diameter = diameters[Math.floor(Math.random() * diameters.length)];
+  const diameters = [250, 180, 125, 90, 63];
+  const diameter = diameters[Math.floor(Math.random() * diameters.length)];
 
-    const connected = Math.random() > 0.4 ? "✅ متصل بالشبكة" : "⚠️ غير متصل";
+  const connected = (p.connected === true || p.connected === "true") ? 
+                    "✅ متصل بالشبكة" : "⚠️ غير متصل بالشبكة";
 
-    const data = [
-        { label: "خط الطول", value: lon.toFixed(5), icon: "fa-map-marker-alt" },
-        { label: "دائرة العرض", value: lat.toFixed(5), icon: "fa-map-marker" },
-        { label: "الوقت", value: now.toLocaleTimeString('ar-EG'), icon: "fa-clock" },
-        
-        { label: "نسبة غاز الميثان", value: methane + " ppm <span class='" + levelClass + "'>" + levelText + "</span>", icon: "fa-gas-pump" },
-        { label: "حالة الاتصال بالشبكة", value: connected, icon: "fa-plug" },
-        { label: "قطر الأنبوب", value: diameter + " مم", icon: "fa-ruler-horizontal" },
-        
-        { label: "درجة الحرارة", value: generateRandom(18, 33) + "°C", icon: "fa-thermometer-half" },
+  // بيانات الطقس (متغيرة حسب المكان)
+  const temp = (18 + Math.random() * 15).toFixed(1);
+  const windSpeed = (2 + Math.random() * 10).toFixed(1);
+  const pressure = (1008 + Math.random() * 15).toFixed(0);
+  const solar = Math.floor(150 + Math.random() * 750);
+  const evap = (0.1 + Math.random() * 0.6).toFixed(2);
+  const rain = (0 + Math.random() * 4).toFixed(1);
+  const uv = (0.5 + Math.random() * 8).toFixed(1);
+
+  const windDir = ["شمال", "شمال شرقي", "شرق", "جنوب شرقي", "جنوب", "جنوب غربي", "غرب", "شمال غربي"][Math.floor(Math.random()*8)];
+
+  const now = new Date().toLocaleTimeString('ar-EG');
+
+  const data = [
+    { label: "اسم المبنى / المنطقة", value: p.building_name || p.name || "منطقة غير مسماة", icon: "fa-building" },
+    { label: "نسبة غاز الميثان", value: `${methane} ppm <span class="${levelClass}">${levelText}</span>`, icon: "fa-gas-pump" },
+    { label: "حالة الاتصال", value: connected, icon: "fa-plug" },
+    { label: "قطر الأنبوب", value: `${diameter} مم`, icon: "fa-ruler-horizontal" },
+
+    { label: "دائرة العرض", value: lat.toFixed(5), icon: "fa-map-marker" },
+    { label: "خط الطول", value: lon.toFixed(5), icon: "fa-map-marker-alt" },
+    { label: "التوقيت", value: now, icon: "fa-clock" },
+
+    { label: "درجة الحرارة", value: generateRandom(18, 33) + "°C", icon: "fa-thermometer-half" },
         { label: "سرعة الرياح", value: generateRandom(2, 12) + " م/ث", icon: "fa-wind" },
         { label: "اتجاه الرياح", value: getWindDirection(), icon: "fa-compass" },
         { label: "الضغط الجوي", value: generateRandom(1005, 1022) + " hPa", icon: "fa-weight" },
@@ -99,30 +177,26 @@ function updateData(lat, lon) {
         { label: "الأشعة فوق البنفسجية", value: generateRandom(0.5, 8.5) + " UV", icon: "fa-radiation" }
     ];
 
-    var cardsContainer = document.getElementById("weather-cards");
-    cardsContainer.innerHTML = "";
+  const container = document.getElementById("data-cards");
+  container.innerHTML = "";
 
-    data.forEach(item => {
-        let card = document.createElement("div");
-        card.classList.add("card");
-        card.innerHTML = `
-            <h3><i class="fa ${item.icon}"></i> ${item.label}</h3>
-            <p>${item.value}</p>
-        `;
-        cardsContainer.appendChild(card);
-    });
-
-    // تحريك العلامة
-    marker.setLatLng([lat, lon]);
+  data.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <h3><i class="fa ${item.icon}"></i> ${item.label}</h3>
+      <p>${item.value}</p>
+    `;
+    container.appendChild(card);
+  });
 }
 
-// النقر على الخريطة
-map.on('click', function (e) {
-    updateData(e.latlng.lat, e.latlng.lng);
-});
-
-// تحميل أولي
-updateData(31.35, 31.28);
+// بدء التشغيل
+window.onload = () => {
+  initMap();
+  // عرض أولي
+  updateAllData(31.40, 31.75);
+};
 </script>
 
 </body>
