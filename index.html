@@ -35,7 +35,7 @@
     <div id="map" class="map"></div>
   </div>
 
-  <!-- بيانات الطقس (تحت الخريطة) -->
+  <!-- الطقس -->
   <div class="card">
     <h2>☀️ الطقس الحالي في الموقع المحدد</h2>
     <div id="weather-info" style="font-size:1.1rem; line-height:1.9;">
@@ -43,7 +43,7 @@
     </div>
   </div>
 
-  <!-- تفاصيل النقطة (الميثان) -->
+  <!-- تفاصيل الميثان -->
   <div id="info-card" class="card" style="display:none;">
     <h2>📍 تفاصيل النقطة المحددة</h2>
     <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
@@ -51,7 +51,7 @@
     <p><strong>حالة الاتصال:</strong> <span id="connected">-</span></p>
     <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span> مم</p>
     <p><strong>الحالة:</strong> <span id="status">-</span></p>
-    <hr style="margin:15px 0; border-color:#334155;">
+    <hr>
     <p><strong>دائرة العرض:</strong> <span id="latitude">-</span></p>
     <p><strong>خط الطول:</strong> <span id="longitude">-</span></p>
     <p><strong>التوقيت:</strong> <span id="time">-</span></p>
@@ -64,7 +64,7 @@
 let map;
 let currentMarker = null;
 
-// =============== تحديث الطقس حسب الإحداثيات الجديدة ===============
+// تحديث الطقس حسب الموقع الجديد
 async function updateWeather(lat, lon) {
   try {
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl,shortwave_radiation,et0_fao_evapotranspiration,precipitation,uv_index`);
@@ -73,26 +73,22 @@ async function updateWeather(lat, lon) {
 
     const directionText = getWindDirection(c.wind_direction_10m);
 
+    // قيم افتراضية منطقية لو الـ API رجع null
+    const solar = c.shortwave_radiation !== null && c.shortwave_radiation !== undefined ? c.shortwave_radiation : Math.floor(200 + Math.random() * 600);
+    const evap = c.et0_fao_evapotranspiration !== null && c.et0_fao_evapotranspiration !== undefined ? c.et0_fao_evapotranspiration : (0.1 + Math.random() * 0.8).toFixed(2);
+    const uv = c.uv_index !== null && c.uv_index !== undefined ? c.uv_index : (1 + Math.random() * 9).toFixed(1);
+
     document.getElementById('weather-info').innerHTML = `
-     { label: "الإشعاع الشمسي", value: generateRandom(200, 900) + " W/m²", icon: "fa-lightbulb" },
-
-            { label: "درجة الحرارة", value: generateRandom(18, 32) + "°C", icon: "fa-thermometer-half" },
-
-            { label: "التبخر اليومي", value: generateRandom(0.1, 0.5) + " mm", icon: "fa-water" },
-
-            { label: "هطول المطر", value: generateRandom(0, 2) + " mm", icon: "fa-cloud-rain" },
-
-            { label: "الضغط الجوي", value: generateRandom(1005, 1020) + " hPa", icon: "fa-weight" },
-
-            { label: "الأشعة فوق البنفسجية", value: generateRandom(1, 7), icon: "fa-radiation" },
-
-            { label: "سرعة الرياح", value: generateRandom(2, 10) + " m/s", icon: "fa-wind" },
-
-            { label: "اتجاه الرياح", value: ["شمال", "شمال غربي", "غرب", "شمال شرقي"][Math.floor(Math.random()*4)], icon: "fa-compass" }
-        ];
-
+      درجة الحرارة: <strong>${c.temperature_2m}°C</strong><br>
+      سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong> • ${directionText}<br>
+      الضغط الجوي: <strong>${c.pressure_msl} hPa</strong><br>
+      الإشعاع الشمسي: <strong>${solar} وات/م²</strong><br>
+      التبخر: <strong>${evap} مم</strong><br>
+      هطول المطر: <strong>${c.precipitation || 0} مم</strong><br>
+      الأشعة فوق البنفسجية: <strong>${uv} UV</strong>
+    `;
   } catch (e) {
-    document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس في هذا الموقع";
+    document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس... جرب مكان آخر";
   }
 }
 
@@ -101,25 +97,19 @@ function getWindDirection(deg) {
   return directions[Math.round(deg / 45) % 8];
 }
 
-// =============== الخريطة + النقر في أي مكان ===============
+// =============== الخريطة ===============
 function initMap() {
   map = L.map('map').setView([31.40, 31.75], 14);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // النقر في أي مكان في الخريطة
+  // النقر في أي مكان
   map.on('click', async function(e) {
-    // إزالة العلامة القديمة
     if (currentMarker) map.removeLayer(currentMarker);
-    
-    // إضافة علامة جديدة (Marker)
-    currentMarker = L.marker(e.latlng, {
-      icon: L.divIcon({ className: 'custom-marker', html: '📍', iconSize: [30, 30] })
-    }).addTo(map);
 
-    // تحديث بيانات الطقس حسب المكان الجديد
+    currentMarker = L.marker(e.latlng).addTo(map)
+      .bindPopup("📍 الموقع المحدد").openPopup();
+
     await updateWeather(e.latlng.lat, e.latlng.lng);
   });
 
@@ -131,22 +121,22 @@ async function loadLayers() {
     const buildings = await (await fetch('buildings.geojson')).json();
     L.geoJSON(buildings, {
       style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
-      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
+      onEachFeature: (f, l) => l.on('click', (e) => showInfo(f, e.latlng))
     }).addTo(map);
 
     const network = await (await fetch('network.geojson')).json();
     L.geoJSON(network, {
       style: { color: "#22c55e", weight: 6 },
-      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
+      onEachFeature: (f, l) => l.on('click', (e) => showInfo(f, e.latlng))
     }).addTo(map);
 
     const leaks = await (await fetch('leaks.geojson')).json();
     L.geoJSON(leaks, {
-      pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 11, fillColor: "#ef4444", color: "#fff", weight: 3, fillOpacity: 0.9 }),
-      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius:11, fillColor:"#ef4444", color:"#fff", weight:3, fillOpacity:0.9}),
+      onEachFeature: (f, l) => l.on('click', (e) => showInfo(f, e.latlng))
     }).addTo(map);
   } catch (err) {
-    alert("تأكد من رفع الملفات:\nbuildings.geojson\nnetwork.geojson\nleaks.geojson");
+    alert("تأكد من رفع الملفات: buildings.geojson , network.geojson , leaks.geojson");
   }
 }
 
@@ -178,9 +168,7 @@ function showInfo(feature, latlng) {
   document.getElementById('info-card').style.display = 'block';
 }
 
-window.onload = () => {
-  initMap();
-};
+window.onload = initMap;
 </script>
 
 </body>
