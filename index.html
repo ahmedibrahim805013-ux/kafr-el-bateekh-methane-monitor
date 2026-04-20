@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>غاز كفر البطيخ - مراقبة الميثان</title>
+  
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#1e88e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+    body { font-family: 'Cairo', sans-serif; margin:0; background:#0f172a; color:white; }
+    .header { background: linear-gradient(135deg, #1e88e5, #1565c0); padding:20px; text-align:center; }
+    .container { max-width: 1100px; margin: auto; padding:20px; }
+    .card { background:#1e2937; border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 10px 20px rgba(0,0,0,0.3); }
+    .methane-big { font-size: 4.5rem; font-weight:700; color:#22c55e; text-align:center; }
+    .status { padding:10px 20px; border-radius:50px; font-weight:700; text-align:center; display:inline-block; }
+    .map { height:400px; border-radius:16px; }
+    .search { width:100%; padding:15px; font-size:1.1rem; border-radius:50px; border:none; margin-bottom:20px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌍 غاز كفر البطيخ</h1>
+  <p style="margin:0; opacity:0.9;">مراقبة نسبة غاز الميثان • شبكة الغاز الطبيعي</p>
+</div>
+
+<div class="container">
+
+  <input type="text" id="search" class="search" placeholder="ابحث عن منطقة أو مدينة (مثال: كفر البطيخ، دمياط، المنصورة)...">
+
+  <div class="card">
+    <h2 id="location-name">كفر البطيخ - دمياط</h2>
+    <div class="methane-big" id="methane-value">1.85 ppm</div>
+    <div id="status" class="status" style="background:#22c55e;color:black;">آمن - ضمن الحدود الطبيعية</div>
+  </div>
+
+  <div class="card">
+    <h3>تفاصيل المنطقة</h3>
+    <p><strong>نسبة الميثان:</strong> <span id="methane-detail">1.85 ppm</span></p>
+    <p><strong>حالة الشبكة:</strong> <span id="network-status" style="color:#22c55e">✅ متصل بالغاز الطبيعي</span></p>
+    <p><strong>نسبة التغطية بالغاز:</strong> <span id="coverage">92%</span></p>
+    <p><strong>آخر تحديث:</strong> <span id="last-update">منذ 12 دقيقة</span></p>
+  </div>
+
+  <!-- الخريطة -->
+  <div class="card">
+    <h3>🗺️ خريطة شبكة الغاز في المنطقة</h3>
+    <div id="map" class="map"></div>
+  </div>
+
+  <div class="card">
+    <h3>المناطق القريبة المتصلة بالغاز</h3>
+    <ul id="areas-list" style="list-style:none;padding:0;"></ul>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// بيانات وهمية (تقدر تغيرها أو تربطها بـ API خاص بك بعدين)
+const data = {
+  "كفر البطيخ": { methane: 1.85, status: "آمن", color: "#22c55e", network: "✅ متصل", coverage: "92%", areas: ["شارع الجمهورية", "حي السلام", "منطقة المصانع"] },
+  "دمياط": { methane: 2.10, status: "تحذير", color: "#f59e0b", network: "✅ متصل", coverage: "88%", areas: ["دمياط الجديدة", "رأس البر"] },
+  "المنصورة": { methane: 1.65, status: "آمن", color: "#22c55e", network: "✅ متصل", coverage: "95%", areas: ["حي الجامعة", "ميت غمر"] },
+  "بورسعيد": { methane: 3.20, status: "خطر", color: "#ef4444", network: "⚠️ جزئي", coverage: "65%", areas: ["بورفؤاد"] }
+};
+
+let map;
+function initMap() {
+  map = L.map('map').setView([31.40, 31.75], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // خطوط وهمية لشبكة الغاز
+  L.polyline([[31.42, 31.70], [31.38, 31.82]], {color: '#22c55e', weight: 6}).addTo(map);
+  L.marker([31.40, 31.75]).addTo(map).bindPopup('كفر البطيخ - محطة غاز رئيسية');
+  L.marker([31.35, 31.80]).addTo(map).bindPopup('منطقة متصلة بالشبكة');
+}
+
+function updateUI(city) {
+  const info = data[city] || data["كفر البطيخ"];
+  document.getElementById('location-name').textContent = city + " - دمياط";
+  document.getElementById('methane-value').textContent = info.methane + " ppm";
+  document.getElementById('methane-detail').textContent = info.methane + " ppm";
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = info.status;
+  statusEl.style.background = info.color;
+  statusEl.style.color = info.color === "#22c55e" ? "black" : "white";
+  document.getElementById('network-status').innerHTML = info.network;
+  document.getElementById('coverage').textContent = info.coverage;
+
+  // قائمة المناطق
+  const list = document.getElementById('areas-list');
+  list.innerHTML = '';
+  info.areas.forEach(area => {
+    const li = document.createElement('li');
+    li.innerHTML = `🏠 ${area}`;
+    list.appendChild(li);
+  });
+}
+
+document.getElementById('search').addEventListener('input', function() {
+  const query = this.value.trim();
+  if (data[query]) updateUI(query);
+});
+
+// تشغيل الموقع
+window.onload = () => {
+  initMap();
+  updateUI("كفر البطيخ");
+};
+</script>
+
+<!-- Service Worker للـ PWA -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
