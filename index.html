@@ -79,8 +79,8 @@ async function loadWeather() {
     document.getElementById('weather-info').innerHTML = `
       درجة الحرارة: <strong>${c.temperature_2m}°C</strong><br>
       سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong><br>
-      اتجاه الرياح: <strong>${directionText}</strong><br>
-    `;
+      اتجاه الرياح: <strong>${directionText}</strong><br
+      الضغط الجوي: <strong>${c.pressure_msl} hPa</strong>
   } catch (e) {
     document.getElementById('weather-info').innerHTML = "تعذر تحميل بيانات الطقس";
   }
