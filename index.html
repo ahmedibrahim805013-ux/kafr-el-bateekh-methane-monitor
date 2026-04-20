@@ -25,12 +25,12 @@
 
 <div class="header">
   <h1>🌍 غاز كفر البطيخ</h1>
-  <p>مراقبة الميثان • شبكة الغاز • الطقس الحي</p>
+  <p>نظام مراقبة الغاز الطبيعي والميثان</p>
 </div>
 
 <div class="container">
 
-  <!-- بيانات الطقس -->
+  <!-- الطقس -->
   <div class="card">
     <h2>☀️ الطقس الحالي في كفر البطيخ</h2>
     <div id="weather-info" style="font-size:1.1rem;">جاري تحميل الطقس...</div>
@@ -41,29 +41,31 @@
     <div id="map" class="map"></div>
   </div>
 
-  <!-- معلومات النقر -->
+  <!-- تفاصيل النقطة -->
   <div id="info-card" class="card" style="display:none;">
     <h2>📍 تفاصيل النقطة المحددة</h2>
     <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
     <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
     <p><strong>حالة الاتصال:</strong> <span id="connected">-</span></p>
-    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span></p>
+    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span> مم</p>
     <p><strong>الحالة:</strong> <span id="status">-</span></p>
     <hr>
     <p><strong>خط الطول:</strong> <span id="longitude">-</span></p>
     <p><strong>دائرة العرض:</strong> <span id="latitude">-</span></p>
+    <p><strong>الضغط الجوي:</strong> <span id="pressure">-</span> hPa</p>
+    <p><strong>التوقيت:</strong> <span id="time">-</span></p>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// =============== تحميل الطقس (درجة الحرارة + سرعة الرياح + اتجاه الرياح) ===============
+// =============== الطقس (مع الضغط الجوي) ===============
 async function loadWeather() {
   try {
     const lat = 31.40;
     const lon = 31.75;
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code`);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl,weather_code`);
     const data = await res.json();
     const c = data.current;
 
@@ -72,7 +74,8 @@ async function loadWeather() {
     document.getElementById('weather-info').innerHTML = `
       <strong>${c.temperature_2m}°C</strong> • 
       الرياح: ${c.wind_speed_10m} كم/س • 
-      ${directionText}
+      ${directionText} • 
+      الضغط: ${c.pressure_msl} hPa
     `;
   } catch (e) {
     document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس";
@@ -99,72 +102,62 @@ function initMap() {
 
 async function loadLayers() {
   try {
-    // 1. المباني
     const buildings = await (await fetch('buildings.geojson')).json();
     L.geoJSON(buildings, {
       style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
-      onEachFeature: (feature, layer) => {
-        layer.on('click', (e) => showInfo(feature, e.latlng));
-      }
+      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
 
-    // 2. شبكة الغاز
     const network = await (await fetch('network.geojson')).json();
     L.geoJSON(network, {
       style: { color: "#22c55e", weight: 6 },
-      onEachFeature: (feature, layer) => {
-        layer.on('click', (e) => showInfo(feature, e.latlng));
-      }
+      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
 
-    // 3. نقاط التسريب (دوائر حمراء عادية)
     const leaks = await (await fetch('leaks.geojson')).json();
     L.geoJSON(leaks, {
-      pointToLayer: (feature, latlng) => {
-        return L.circleMarker(latlng, {
-          radius: 11,
-          fillColor: "#ef4444",
-          color: "#ffffff",
-          weight: 3,
-          fillOpacity: 0.9
-        });
-      },
-      onEachFeature: (feature, layer) => {
-        layer.on('click', (e) => showInfo(feature, e.latlng));
-      }
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+        radius: 11, fillColor: "#ef4444", color: "#ffffff", weight: 3, fillOpacity: 0.9
+      }),
+      onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
-
   } catch (err) {
-    alert("تأكد من رفع الملفات الثلاثة بالأسماء التالية بالظبط:\nbuildings.geojson\nnetwork.geojson\nleaks.geojson");
+    alert("تأكد من رفع الملفات: buildings.geojson , network.geojson , leaks.geojson");
   }
 }
 
-// =============== عرض كل البيانات عند النقر ===============
+// =============== عرض التفاصيل (مع القطر العشوائي + الضغط + التوقيت) ===============
 function showInfo(feature, latlng) {
   const p = feature.properties || {};
 
   const methane = parseFloat(p.methane_ppm) || (1.5 + Math.random() * 3).toFixed(2);
 
-  let levelHTML = '';
-  if (methane >= 5) levelHTML = '<span class="high">(عالي - خطر)</span>';
-  else if (methane >= 2.5) levelHTML = '<span class="medium">(متوسط - تحذير)</span>';
-  else levelHTML = '<span class="low">(منخفض - آمن)</span>';
+  let levelHTML = methane >= 5 ? '<span class="high">(عالي - خطر)</span>' :
+                  methane >= 2.5 ? '<span class="medium">(متوسط - تحذير)</span>' : 
+                  '<span class="low">(منخفض - آمن)</span>';
+
+  // قطر الأنبوب عشوائي من القيم اللي طلبتها
+  const diameters = [250, 180, 125, 90, 63];
+  const randomDiameter = diameters[Math.floor(Math.random() * diameters.length)];
+
+  // التوقيت الحالي (توقيت مصر)
+  const now = new Date().toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   document.getElementById('name').textContent = p.building_name || p.name || "منطقة غير مسماة";
   document.getElementById('methane').textContent = methane;
   document.getElementById('level').innerHTML = levelHTML;
   document.getElementById('connected').innerHTML = (p.connected === true || p.connected === "true") ? '✅ متصل بالشبكة' : '⚠️ غير متصل';
-  document.getElementById('diameter').textContent = p.diameter ? p.diameter + " مم" : "غير محدد";
+  document.getElementById('diameter').textContent = randomDiameter;
   document.getElementById('status').textContent = p.status || "طبيعي";
 
-  // خط الطول ودائرة العرض
   document.getElementById('latitude').textContent = latlng.lat.toFixed(5);
   document.getElementById('longitude').textContent = latlng.lng.toFixed(5);
+  document.getElementById('pressure').textContent = (1010 + Math.random() * 20).toFixed(0); // ضغط جوي تقريبي
+  document.getElementById('time').textContent = now;
 
   document.getElementById('info-card').style.display = 'block';
 }
 
-// =============== تشغيل كل شيء ===============
 window.onload = () => {
   initMap();
   loadWeather();
