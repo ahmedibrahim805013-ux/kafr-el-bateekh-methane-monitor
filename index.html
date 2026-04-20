@@ -38,8 +38,8 @@
   <!-- بيانات الطقس (تحت الخريطة) -->
   <div class="card">
     <h2>☀️ الطقس الحالي في كفر البطيخ</h2>
-    <div id="weather-info" style="font-size:1.15rem; line-height:1.8;">
-      جاري تحميل الطقس...
+    <div id="weather-info" style="font-size:1.1rem; line-height:1.9;">
+      جاري تحميل بيانات الطقس...
     </div>
   </div>
 
@@ -65,12 +65,15 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// =============== الطقس (مع الضغط الجوي مرة واحدة) ===============
+// =============== الطقس الكامل (مع كل البيانات الجديدة) ===============
 async function loadWeather() {
   try {
     const lat = 31.40;
     const lon = 31.75;
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl`);
+    
+    // إضافة المتغيرات الجديدة: solar radiation, evapotranspiration, precipitation, UV index
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl,shortwave_radiation,et0_fao_evapotranspiration,precipitation,uv_index`);
+    
     const data = await res.json();
     const c = data.current;
 
@@ -78,11 +81,15 @@ async function loadWeather() {
 
     document.getElementById('weather-info').innerHTML = `
       درجة الحرارة: <strong>${c.temperature_2m}°C</strong><br>
-      سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong><br>
-      اتجاه الرياح: <strong>${directionText}</strong><br
-      الضغط الجوي: <strong>${c.pressure_msl} hPa</strong>
+      سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong> • ${directionText}<br>
+      الضغط الجوي: <strong>${c.pressure_msl} hPa</strong><br>
+      الإشعاع الشمسي: <strong>${c.shortwave_radiation || '-'} وات/م²</strong><br>
+      التبخر: <strong>${c.et0_fao_evapotranspiration || '-'} مم</strong><br>
+      هطول المطر: <strong>${c.precipitation || '0'} مم</strong><br>
+      الأشعة فوق البنفسجية: <strong>${c.uv_index || '-'} UV</strong>
+    `;
   } catch (e) {
-    document.getElementById('weather-info').innerHTML = "تعذر تحميل بيانات الطقس";
+    document.getElementById('weather-info').innerHTML = "تعذر تحميل بيانات الطقس الكاملة";
   }
 }
 
@@ -130,7 +137,7 @@ async function loadLayers() {
   }
 }
 
-// =============== عرض التفاصيل ===============
+// =============== عرض تفاصيل النقطة ===============
 function showInfo(feature, latlng) {
   const p = feature.properties || {};
 
