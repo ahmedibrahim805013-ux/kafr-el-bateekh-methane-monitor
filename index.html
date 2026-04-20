@@ -82,11 +82,6 @@ async function updateWeather(lat, lon) {
       درجة الحرارة: <strong>${c.temperature_2m}°C</strong><br>
       سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong> • ${directionText}<br>
       الضغط الجوي: <strong>${c.pressure_msl} hPa</strong><br>
-      الإشعاع الشمسي: <strong>${solar} وات/م²</strong><br>
-      التبخر: <strong>${evap} مم</strong><br>
-      هطول المطر: <strong>${c.precipitation || 0} مم</strong><br>
-      الأشعة فوق البنفسجية: <strong>${uv} UV</strong>
-    `;
   } catch (e) {
     document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس... جرب مكان آخر";
   }
