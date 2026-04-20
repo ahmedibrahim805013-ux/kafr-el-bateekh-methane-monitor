@@ -19,7 +19,6 @@
     .high { color:#ef4444; font-weight:bold; }
     .medium { color:#f59e0b; font-weight:bold; }
     .low { color:#22c55e; font-weight:bold; }
-    .info-row { display: flex; justify-content: space-between; margin: 8px 0; }
   </style>
 </head>
 <body>
@@ -31,17 +30,17 @@
 
 <div class="container">
 
-  <!-- الطقس -->
+  <!-- الخريطة -->
+  <div class="card">
+    <div id="map" class="map"></div>
+  </div>
+
+  <!-- بيانات الطقس (تحت الخريطة) -->
   <div class="card">
     <h2>☀️ الطقس الحالي في كفر البطيخ</h2>
     <div id="weather-info" style="font-size:1.15rem; line-height:1.8;">
       جاري تحميل الطقس...
     </div>
-  </div>
-
-  <!-- الخريطة -->
-  <div class="card">
-    <div id="map" class="map"></div>
   </div>
 
   <!-- تفاصيل النقطة -->
@@ -51,35 +50,22 @@
     <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
     <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
     
-    <div class="info-row">
-      <span><strong>حالة الاتصال:</strong> <span id="connected">-</span></span>
-    </div>
-    <div class="info-row">
-      <span><strong>قطر الأنبوب:</strong> <span id="diameter">-</span> مم</span>
-    </div>
-    <div class="info-row">
-      <span><strong>الحالة:</strong> <span id="status">-</span></span>
-    </div>
+    <p><strong>حالة الاتصال:</strong> <span id="connected">-</span></p>
+    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span> مم</p>
+    <p><strong>الحالة:</strong> <span id="status">-</span></p>
 
     <hr style="margin:15px 0; border-color:#334155;">
 
-    <div class="info-row">
-      <span><strong>دائرة العرض:</strong> <span id="latitude">-</span></span>
-      <span><strong>خط الطول:</strong> <span id="longitude">-</span></span>
-    </div>
-    <div class="info-row">
-      <span><strong>الضغط الجوي:</strong> <span id="pressure">-</span> hPa</span>
-    </div>
-    <div class="info-row">
-      <span><strong>التوقيت:</strong> <span id="time">-</span></span>
-    </div>
+    <p><strong>دائرة العرض:</strong> <span id="latitude">-</span></p>
+    <p><strong>خط الطول:</strong> <span id="longitude">-</span></p>
+    <p><strong>التوقيت:</strong> <span id="time">-</span></p>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// =============== الطقس الكامل ===============
+// =============== الطقس (مع الضغط الجوي مرة واحدة) ===============
 async function loadWeather() {
   try {
     const lat = 31.40;
@@ -121,21 +107,18 @@ function initMap() {
 
 async function loadLayers() {
   try {
-    // المباني
     const buildings = await (await fetch('buildings.geojson')).json();
     L.geoJSON(buildings, {
       style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
       onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
 
-    // شبكة الغاز
     const network = await (await fetch('network.geojson')).json();
     L.geoJSON(network, {
       style: { color: "#22c55e", weight: 6 },
       onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
 
-    // نقاط التسريب
     const leaks = await (await fetch('leaks.geojson')).json();
     L.geoJSON(leaks, {
       pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
@@ -148,7 +131,7 @@ async function loadLayers() {
   }
 }
 
-// =============== عرض التفاصيل المتناسقة ===============
+// =============== عرض التفاصيل ===============
 function showInfo(feature, latlng) {
   const p = feature.properties || {};
 
@@ -158,7 +141,6 @@ function showInfo(feature, latlng) {
                   methane >= 2.5 ? '<span class="medium">(متوسط - تحذير)</span>' : 
                   '<span class="low">(منخفض - آمن)</span>';
 
-  // قطر الأنبوب عشوائي من القيم المطلوبة
   const diameters = [250, 180, 125, 90, 63];
   const randomDiameter = diameters[Math.floor(Math.random() * diameters.length)];
 
@@ -180,7 +162,6 @@ function showInfo(feature, latlng) {
 
   document.getElementById('latitude').textContent = latlng.lat.toFixed(5);
   document.getElementById('longitude').textContent = latlng.lng.toFixed(5);
-  document.getElementById('pressure').textContent = (1010 + Math.random() * 25).toFixed(0);
   document.getElementById('time').textContent = now;
 
   document.getElementById('info-card').style.display = 'block';
