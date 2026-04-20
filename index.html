@@ -1,182 +1,156 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>غاز كفر البطيخ - الميثان والطقس</title>
+  
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#1e88e5">
 
-<title>نظام مراقبة الغاز والمناخ - كفر البطيخ</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-body { font-family: Arial; margin:0; background:#0f172a; color:white; }
-
-.header {
-  background: linear-gradient(135deg, #1e88e5, #1565c0);
-  padding:20px;
-  text-align:center;
-}
-
-.container { max-width: 1200px; margin:auto; padding:15px; }
-
-#map { height: 550px; border-radius:15px; }
-
-.card {
-  background:#1e2937;
-  border-radius:15px;
-  padding:20px;
-  margin-top:20px;
-}
-
-.high { color:red; }
-.medium { color:orange; }
-.low { color:lightgreen; }
-</style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+    body { font-family: 'Cairo', sans-serif; margin:0; background:#0f172a; color:white; }
+    .header { background: linear-gradient(135deg, #1e88e5, #1565c0); padding:20px; text-align:center; }
+    .container { max-width: 1200px; margin: auto; padding:15px; }
+    .map { height: 520px; border-radius: 15px; }
+    .card { background:#1e2937; border-radius:15px; padding:20px; margin-bottom:20px; }
+    .weather-card { background:#1e2937; border-radius:15px; padding:20px; margin-bottom:20px; }
+    .high { color:#ef4444; } .medium { color:#f59e0b; } .low { color:#22c55e; }
+  </style>
 </head>
-
 <body>
 
 <div class="header">
-<h1>🌍 نظام مراقبة الغاز والمناخ</h1>
-<p>كفر البطيخ - دمياط</p>
+  <h1>🌍 غاز كفر البطيخ</h1>
+  <p>مراقبة الميثان • شبكة الغاز • الطقس الحي</p>
 </div>
 
 <div class="container">
-<div id="map"></div>
 
-<div id="info-card" class="card" style="display:none;">
-<h3>📍 تفاصيل النقطة</h3>
+  <!-- بيانات الطقس -->
+  <div class="weather-card" id="weather-card">
+    <h2>☀️ الطقس في كفر البطيخ</h2>
+    <div id="weather-info">جاري تحميل الطقس...</div>
+  </div>
 
-<p><b>الاسم:</b> <span id="name"></span></p>
+  <!-- الخريطة -->
+  <div class="card">
+    <div id="map" class="map"></div>
+  </div>
 
-<h4>🛢️ بيانات الغاز</h4>
-<p>الميثان: <span id="methane"></span> <span id="level"></span></p>
-<p>الشبكة: <span id="connected"></span></p>
-<p>القطر: <span id="diameter"></span></p>
-<p>الحالة: <span id="status"></span></p>
-
-<h4>🌦️ بيانات الطقس</h4>
-<p>🌡️ الحرارة: <span id="temp"></span> °C</p>
-<p>🌬️ الرياح: <span id="wind"></span> m/s</p>
-<p>🌧️ المطر: <span id="rain"></span> mm</p>
-<p>☀️ إشعاع شمسي: <span id="solar"></span> W/m²</p>
-<p>💨 الضغط: <span id="pressure"></span> hPa</p>
-
-</div>
+  <!-- معلومات النقر -->
+  <div id="info-card" class="card" style="display:none;">
+    <h2>📍 تفاصيل النقطة</h2>
+    <p><strong>الاسم:</strong> <span id="name">-</span></p>
+    <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
+    <p><strong>الاتصال:</strong> <span id="connected">-</span></p>
+    <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span></p>
+    <p><strong>الحالة:</strong> <span id="status">-</span></p>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
+// =============== الطقس (Open-Meteo - مجاني بدون API Key) ===============
+async function loadWeather() {
+  try {
+    // إحداثيات كفر البطيخ تقريبياً
+    const lat = 31.40;
+    const lon = 31.75;
 
-// ================== الخريطة ==================
-var map = L.map('map').setView([31.35, 31.28], 14);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`);
+    const data = await res.json();
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const current = data.current;
+    const weatherDesc = getWeatherDescription(current.weather_code);
 
-// ================== بيانات احتياطية ==================
-
-const buildings = {
-"type":"FeatureCollection",
-"features":[
-{
-"type":"Feature",
-"properties":{"name":"مبنى سكني","methane_ppm":3},
-"geometry":{"type":"Polygon","coordinates":[[[31.28,31.35],[31.29,31.35],[31.29,31.36],[31.28,31.36],[31.28,31.35]]]}
+    document.getElementById('weather-info').innerHTML = `
+      <strong>${current.temperature_2m}°C</strong> - ${weatherDesc}<br>
+      الرطوبة: ${current.relative_humidity_2m}% | الرياح: ${current.wind_speed_10m} كم/س
+    `;
+  } catch (e) {
+    document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس حالياً";
+  }
 }
-]
-};
 
-const network = {
-"type":"FeatureCollection",
-"features":[
-{
-"type":"Feature",
-"properties":{"name":"خط غاز","diameter":250,"connected":true},
-"geometry":{"type":"LineString","coordinates":[[31.28,31.35],[31.30,31.36]]}
+function getWeatherDescription(code) {
+  if (code === 0) return "صافي";
+  if (code <= 3) return "غائم جزئياً";
+  if (code <= 48) return "ضباب";
+  if (code <= 67) return "مطر خفيف";
+  if (code <= 86) return "ثلج";
+  return "مطر أو عواصف";
 }
-]
-};
 
-const leaks = {
-"type":"FeatureCollection",
-"features":[
-{
-"type":"Feature",
-"properties":{"name":"تسريب غاز","methane_ppm":6,"status":"خطر"},
-"geometry":{"type":"Point","coordinates":[31.29,31.355]}
+// =============== الخريطة والطبقات ===============
+let map;
+
+function initMap() {
+  map = L.map('map').setView([31.40, 31.75], 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  loadGeoJSONLayers();
 }
-]
-};
 
-// ================== رسم الطبقات ==================
+async function loadGeoJSONLayers() {
+  try {
+    // المباني
+    const buildings = await (await fetch('buildings.geojson')).json();
+    L.geoJSON(buildings, {
+      style: { color: "#3b82f6", weight: 2, fillOpacity: 0.4 },
+      onEachFeature: (f, l) => l.on('click', () => showInfo(f))
+    }).addTo(map);
 
-L.geoJSON(buildings,{
-  style:{color:"#3b82f6", fillOpacity:0.4},
-  onEachFeature:(f,l)=> l.on('click',()=>showInfo(f))
-}).addTo(map);
+    // شبكة الغاز
+    const network = await (await fetch('network.geojson')).json();
+    L.geoJSON(network, {
+      style: { color: "#22c55e", weight: 6 },
+      onEachFeature: (f, l) => l.on('click', () => showInfo(f))
+    }).addTo(map);
 
-L.geoJSON(network,{
-  style:{color:"#22c55e", weight:5},
-  onEachFeature:(f,l)=> l.on('click',()=>showInfo(f))
-}).addTo(map);
+    // نقاط التسريب - دوائر حمراء عادية
+    const leaks = await (await fetch('leaks.geojson')).json();
+    L.geoJSON(leaks, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 11, fillColor: "#ef4444", color: "#fff", weight: 3, fillOpacity: 0.9
+      }),
+      onEachFeature: (f, l) => l.on('click', () => showInfo(f))
+    }).addTo(map);
 
-L.geoJSON(leaks,{
-  pointToLayer:(f,latlng)=> L.circleMarker(latlng,{
-    radius:10,
-    fillColor:"red",
-    color:"white",
-    weight:2,
-    fillOpacity:0.9
-  }),
-  onEachFeature:(f,l)=> l.on('click',()=>showInfo(f))
-}).addTo(map);
+  } catch (err) {
+    console.error(err);
+    alert("تأكد من رفع ملفات: buildings.geojson , network.geojson , leaks.geojson");
+  }
+}
 
-// ================== عرض البيانات ==================
-
-function showInfo(feature){
-
+function showInfo(feature) {
   const p = feature.properties || {};
+  const methane = parseFloat(p.methane_ppm) || (1.5 + Math.random() * 3).toFixed(2);
 
-  // ===== الغاز =====
-  let methane = parseFloat(p.methane_ppm) || (Math.random()*5).toFixed(2);
+  let levelHTML = methane >= 5 ? '<span class="high">(عالي - خطر)</span>' :
+                  methane >= 2.5 ? '<span class="medium">(متوسط - تحذير)</span>' :
+                  '<span class="low">(منخفض - آمن)</span>';
 
-  let level="";
-  if(methane>5) level='<span class="high">خطر</span>';
-  else if(methane>2.5) level='<span class="medium">متوسط</span>';
-  else level='<span class="low">آمن</span>';
+  document.getElementById('name').textContent = p.building_name || p.name || "منطقة";
+  document.getElementById('methane').textContent = methane;
+  document.getElementById('level').innerHTML = levelHTML;
+  document.getElementById('connected').innerHTML = (p.connected === true || p.connected === "true") ? 
+    '✅ متصل' : '⚠️ غير متصل';
+  document.getElementById('diameter').textContent = p.diameter ? p.diameter + " مم" : "غير محدد";
+  document.getElementById('status').textContent = p.status || "طبيعي";
 
-  // ===== الطقس (محاكاة) =====
-  let temp = (18 + Math.random()*14).toFixed(1);
-  let wind = (2 + Math.random()*8).toFixed(1);
-  let rain = (Math.random()*2).toFixed(1);
-  let solar = (200 + Math.random()*700).toFixed(0);
-  let pressure = (1005 + Math.random()*15).toFixed(1);
-
-  // ===== عرض =====
-  document.getElementById("name").textContent = p.name || "غير معروف";
-
-  document.getElementById("methane").textContent = methane;
-  document.getElementById("level").innerHTML = level;
-
-  document.getElementById("connected").innerHTML =
-    p.connected ? "✅ متصل" : "⚠️ غير متصل";
-
-  document.getElementById("diameter").textContent =
-    p.diameter ? p.diameter + " مم" : "-";
-
-  document.getElementById("status").textContent =
-    p.status || "طبيعي";
-
-  document.getElementById("temp").textContent = temp;
-  document.getElementById("wind").textContent = wind;
-  document.getElementById("rain").textContent = rain;
-  document.getElementById("solar").textContent = solar;
-  document.getElementById("pressure").textContent = pressure;
-
-  document.getElementById("info-card").style.display="block";
+  document.getElementById('info-card').style.display = 'block';
 }
 
+// =============== بدء التشغيل ===============
+window.onload = () => {
+  initMap();
+  loadWeather();
+};
 </script>
 
 </body>
