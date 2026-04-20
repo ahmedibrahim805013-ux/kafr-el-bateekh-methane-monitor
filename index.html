@@ -74,14 +74,23 @@ async function updateWeather(lat, lon) {
     const directionText = getWindDirection(c.wind_direction_10m);
 
     document.getElementById('weather-info').innerHTML = `
-      درجة الحرارة: <strong>${c.temperature_2m}°C</strong><br>
-      سرعة الرياح: <strong>${c.wind_speed_10m} كم/س</strong> • ${directionText}<br>
-      الضغط الجوي: <strong>${c.pressure_msl} hPa</strong><br>
-      الإشعاع الشمسي: <strong>${c.shortwave_radiation || '-'} وات/م²</strong><br>
-      التبخر: <strong>${c.et0_fao_evapotranspiration || '-'} مم</strong><br>
-      هطول المطر: <strong>${c.precipitation || '0'} مم</strong><br>
-      الأشعة فوق البنفسجية: <strong>${c.uv_index || '-'} UV</strong>
-    `;
+     { label: "الإشعاع الشمسي", value: generateRandom(200, 900) + " W/m²", icon: "fa-lightbulb" },
+
+            { label: "درجة الحرارة", value: generateRandom(18, 32) + "°C", icon: "fa-thermometer-half" },
+
+            { label: "التبخر اليومي", value: generateRandom(0.1, 0.5) + " mm", icon: "fa-water" },
+
+            { label: "هطول المطر", value: generateRandom(0, 2) + " mm", icon: "fa-cloud-rain" },
+
+            { label: "الضغط الجوي", value: generateRandom(1005, 1020) + " hPa", icon: "fa-weight" },
+
+            { label: "الأشعة فوق البنفسجية", value: generateRandom(1, 7), icon: "fa-radiation" },
+
+            { label: "سرعة الرياح", value: generateRandom(2, 10) + " m/s", icon: "fa-wind" },
+
+            { label: "اتجاه الرياح", value: ["شمال", "شمال غربي", "غرب", "شمال شرقي"][Math.floor(Math.random()*4)], icon: "fa-compass" }
+        ];
+
   } catch (e) {
     document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس في هذا الموقع";
   }
