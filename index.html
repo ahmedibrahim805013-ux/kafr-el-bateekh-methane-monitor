@@ -37,25 +37,21 @@
 
   <!-- بيانات الطقس (تحت الخريطة) -->
   <div class="card">
-    <h2>☀️ الطقس الحالي في كفر البطيخ</h2>
+    <h2>☀️ الطقس الحالي في الموقع المحدد</h2>
     <div id="weather-info" style="font-size:1.1rem; line-height:1.9;">
-      جاري تحميل بيانات الطقس...
+      اضغط على أي مكان في الخريطة لعرض الطقس...
     </div>
   </div>
 
-  <!-- تفاصيل النقطة -->
+  <!-- تفاصيل النقطة (الميثان) -->
   <div id="info-card" class="card" style="display:none;">
     <h2>📍 تفاصيل النقطة المحددة</h2>
-    
     <p><strong>اسم المبنى / المنطقة:</strong> <span id="name">-</span></p>
     <p><strong>نسبة الميثان:</strong> <span id="methane">-</span> ppm <span id="level"></span></p>
-    
     <p><strong>حالة الاتصال:</strong> <span id="connected">-</span></p>
     <p><strong>قطر الأنبوب:</strong> <span id="diameter">-</span> مم</p>
     <p><strong>الحالة:</strong> <span id="status">-</span></p>
-
     <hr style="margin:15px 0; border-color:#334155;">
-
     <p><strong>دائرة العرض:</strong> <span id="latitude">-</span></p>
     <p><strong>خط الطول:</strong> <span id="longitude">-</span></p>
     <p><strong>التوقيت:</strong> <span id="time">-</span></p>
@@ -65,15 +61,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// =============== الطقس الكامل (مع كل البيانات الجديدة) ===============
-async function loadWeather() {
+let map;
+let currentMarker = null;
+
+// =============== تحديث الطقس حسب الإحداثيات الجديدة ===============
+async function updateWeather(lat, lon) {
   try {
-    const lat = 31.40;
-    const lon = 31.75;
-    
-    // إضافة المتغيرات الجديدة: solar radiation, evapotranspiration, precipitation, UV index
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl,shortwave_radiation,et0_fao_evapotranspiration,precipitation,uv_index`);
-    
     const data = await res.json();
     const c = data.current;
 
@@ -89,7 +83,7 @@ async function loadWeather() {
       الأشعة فوق البنفسجية: <strong>${c.uv_index || '-'} UV</strong>
     `;
   } catch (e) {
-    document.getElementById('weather-info').innerHTML = "تعذر تحميل بيانات الطقس الكاملة";
+    document.getElementById('weather-info').innerHTML = "تعذر تحميل الطقس في هذا الموقع";
   }
 }
 
@@ -98,15 +92,27 @@ function getWindDirection(deg) {
   return directions[Math.round(deg / 45) % 8];
 }
 
-// =============== الخريطة والطبقات ===============
-let map;
-
+// =============== الخريطة + النقر في أي مكان ===============
 function initMap() {
   map = L.map('map').setView([31.40, 31.75], 14);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
   }).addTo(map);
+
+  // النقر في أي مكان في الخريطة
+  map.on('click', async function(e) {
+    // إزالة العلامة القديمة
+    if (currentMarker) map.removeLayer(currentMarker);
+    
+    // إضافة علامة جديدة (Marker)
+    currentMarker = L.marker(e.latlng, {
+      icon: L.divIcon({ className: 'custom-marker', html: '📍', iconSize: [30, 30] })
+    }).addTo(map);
+
+    // تحديث بيانات الطقس حسب المكان الجديد
+    await updateWeather(e.latlng.lat, e.latlng.lng);
+  });
 
   loadLayers();
 }
@@ -127,9 +133,7 @@ async function loadLayers() {
 
     const leaks = await (await fetch('leaks.geojson')).json();
     L.geoJSON(leaks, {
-      pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-        radius: 11, fillColor: "#ef4444", color: "#fff", weight: 3, fillOpacity: 0.9
-      }),
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 11, fillColor: "#ef4444", color: "#fff", weight: 3, fillOpacity: 0.9 }),
       onEachFeature: (feature, layer) => layer.on('click', (e) => showInfo(feature, e.latlng))
     }).addTo(map);
   } catch (err) {
@@ -137,10 +141,9 @@ async function loadLayers() {
   }
 }
 
-// =============== عرض تفاصيل النقطة ===============
+// =============== تفاصيل الميثان ===============
 function showInfo(feature, latlng) {
   const p = feature.properties || {};
-
   const methane = parseFloat(p.methane_ppm) || (1.5 + Math.random() * 3).toFixed(2);
 
   let levelHTML = methane >= 5 ? '<span class="high">(عالي - خطر)</span>' :
@@ -150,21 +153,14 @@ function showInfo(feature, latlng) {
   const diameters = [250, 180, 125, 90, 63];
   const randomDiameter = diameters[Math.floor(Math.random() * diameters.length)];
 
-  const now = new Date().toLocaleString('ar-EG', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: true 
-  });
+  const now = new Date().toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  document.getElementById('name').textContent     = p.building_name || p.name || "منطقة غير مسماة";
-  document.getElementById('methane').textContent  = methane;
-  document.getElementById('level').innerHTML      = levelHTML;
-  
-  document.getElementById('connected').innerHTML = 
-    (p.connected === true || p.connected === "true") ? '✅ متصل بالشبكة' : '⚠️ غير متصل';
-
+  document.getElementById('name').textContent = p.building_name || p.name || "منطقة غير مسماة";
+  document.getElementById('methane').textContent = methane;
+  document.getElementById('level').innerHTML = levelHTML;
+  document.getElementById('connected').innerHTML = (p.connected === true || p.connected === "true") ? '✅ متصل بالشبكة' : '⚠️ غير متصل';
   document.getElementById('diameter').textContent = randomDiameter;
-  document.getElementById('status').textContent   = p.status || "طبيعي";
+  document.getElementById('status').textContent = p.status || "طبيعي";
 
   document.getElementById('latitude').textContent = latlng.lat.toFixed(5);
   document.getElementById('longitude').textContent = latlng.lng.toFixed(5);
@@ -175,7 +171,6 @@ function showInfo(feature, latlng) {
 
 window.onload = () => {
   initMap();
-  loadWeather();
 };
 </script>
 
